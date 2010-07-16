@@ -4,7 +4,14 @@ epzip is EPUB packing tool. It's just only do 'zip.'
 
 == usage
 
-  $ epzip <somedir as EPUB sources>
+  $ epzip <dir> [filename]
+
+'dir' is EPUB resource directory; it has mimetype, META-INF/container.xml,
+and other assets.
+
+'filename' is EPUB filename that will be created.  If no filename,
+dir + ".epub" is used.
+
 
 == Note on Patches/Pull Requests
  
