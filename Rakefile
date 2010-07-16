@@ -10,6 +10,9 @@ begin
     gem.email = "takahashimm@gmail.com"
     gem.homepage = "http://github.com/takahashim/epzip"
     gem.authors = ["Masayoshi Takahashi"]
+
+    gem.add_dependency('rubyzip', '>= 0.9.4')
+
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
   end
   Jeweler::GemcutterTasks.new
