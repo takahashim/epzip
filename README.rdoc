@@ -1,6 +1,6 @@
 = epzip
 
-epzip is EPUB packing tool. It's just only do 'zip.'
+epzip is EPUB packing tool. It's just only doing 'zip.' :)
 
 == usage
 
