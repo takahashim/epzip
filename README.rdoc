@@ -6,7 +6,7 @@ epzip is EPUB packing tool. It's just only doing 'zip.' :)
 
   $ epzip <srcdir> [filename]
 
-'dir' is EPUB resource directory; it has mimetype, META-INF/container.xml,
+'srcdir' is EPUB resource directory; it has mimetype, META-INF/container.xml,
 and other assets.
 
 'filename' is EPUB filename that will be created.  If no filename,
