@@ -2,16 +2,14 @@ require 'rubygems'
 require 'zip/zip'
 
 class Epzip
+  MIMETYPE_FILENAME = 'mimetype'
+  
   def self.zip(epubdir, epubfile = nil)
     if !File.exists? epubdir
       raise ArgumentError, "No such directory -- #{epubdir}"
     end
 
-    if !epubfile
-      epubfile = epubdir+".epub"
-    end
-
-    MIMETYPE_FILENAME = 'mimetype'
+    epubfile ||= epubdir+".epub"
 
     Zip::ZipOutputStream.open(epubfile) do |f|
 
@@ -30,7 +28,7 @@ class Epzip
       end
     end
 
-    return epubfile
+    epubfile
     
   end
 end

@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
      "Rakefile",
      "VERSION",
      "bin/epzip",
+     "epzip.gemspec",
      "lib/epzip.rb",
      "test/helper.rb",
      "test/test_epzip.rb"
