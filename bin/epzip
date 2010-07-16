@@ -10,7 +10,7 @@ def error_and_exit(msg)
 end	
 
 def usage()
-    error_and_exit "usage: epzip <EPUB source dir>"
+    error_and_exit "usage: epzip <srcdir> [filename]"
 end
 
 if !(ARGV.size == 1 or ARGV.size == 2)
