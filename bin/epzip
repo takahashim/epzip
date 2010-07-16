@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'rubygems'
+require 'epzip'
+
+def error_and_exit(msg)
+  STDERR.puts msg
+  exit
+end	
+
+def usage()
+    error_and_exit "usage: epzip <EPUB source dir>"
+end
+
+if !(ARGV.size == 1 or ARGV.size == 2)
+   usage
+end
+
+dir = ARGV.shift
+if !File.exists? dir
+  error "No such directory: #{dir}"
+end
+
+file = ARGV.shift
+if file and File.exists? file
+  error "File already exists: #{file}"
+end
+
+Epzip.zip(dir, file)

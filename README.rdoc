@@ -1,6 +1,10 @@
 = epzip
 
-Description goes here.
+epzip is EPUB packing tool. It's just only do 'zip.'
+
+== usage
+
+  $ epzip <somedir as EPUB sources>
 
 == Note on Patches/Pull Requests
  
@@ -14,4 +18,4 @@ Description goes here.
 
 == Copyright
 
-Copyright (c) 2010 takahashim. See LICENSE for details.
+Copyright (c) 2010 Masayoshi Takahashi. See LICENSE for details.
