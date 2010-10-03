@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   s.date = %q{2010-10-03}
   s.description = %q{epzip is EPUB packing tool. It's just only to do 'zip.'}
   s.email = %q{takahashimm@gmail.com}
-  s.executables = ["epunzip", "epunzip~", "epzip", "epzip~"]
+  s.executables = ["epunzip", "epzip"]
   s.extra_rdoc_files = [
     "LICENSE",
      "README.rdoc"
