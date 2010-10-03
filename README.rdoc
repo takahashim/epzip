@@ -1,6 +1,6 @@
 = epzip
 
-epzip is EPUB packing tool. It's just only doing 'zip.' :)
+epzip(eunzip) is EPUB packing tool. It's just only doing 'zip' and 'unzip'. :)
 
 == usage
 
@@ -11,6 +11,14 @@ and other assets.
 
 'filename' is EPUB filename that will be created.  If no filename,
 dir + ".epub" is used.
+
+  $ epunzip <filename> [targetdir]
+
+'filename' is EPUB filename that will be extracted.
+
+'targetdir' is EPUB resource directory to be extracted into.  If no targetdir,
+current directory is used.
+
 
 
 == Note on Patches/Pull Requests

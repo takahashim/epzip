@@ -9,11 +9,10 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Masayoshi Takahashi"]
-  s.date = %q{2010-07-16}
-  s.default_executable = %q{epzip}
+  s.date = %q{2010-10-03}
   s.description = %q{epzip is EPUB packing tool. It's just only to do 'zip.'}
   s.email = %q{takahashimm@gmail.com}
-  s.executables = ["epzip"]
+  s.executables = ["epunzip", "epzip"]
   s.extra_rdoc_files = [
     "LICENSE",
      "README.rdoc"
@@ -25,6 +24,7 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION",
+     "bin/epunzip",
      "bin/epzip",
      "epzip.gemspec",
      "lib/epzip.rb",
@@ -34,7 +34,7 @@ Gem::Specification.new do |s|
   s.homepage = %q{http://github.com/takahashim/epzip}
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
-  s.rubygems_version = %q{1.3.6}
+  s.rubygems_version = %q{1.3.7}
   s.summary = %q{simple EPUB packing tool}
   s.test_files = [
     "test/helper.rb",
@@ -45,7 +45,7 @@ Gem::Specification.new do |s|
     current_version = Gem::Specification::CURRENT_SPECIFICATION_VERSION
     s.specification_version = 3
 
-    if Gem::Version.new(Gem::RubyGemsVersion) >= Gem::Version.new('1.2.0') then
+    if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<rubyzip>, [">= 0.9.4"])
     else
       s.add_dependency(%q<rubyzip>, [">= 0.9.4"])

@@ -31,4 +31,29 @@ class Epzip
     epubfile
     
   end
+
+  def self.unzip(epubfile, epubdir = nil)
+    if epubdir
+      FileUtils.mkdir_p(epubdir)
+    else
+      epubdir = Dir.pwd
+    end
+
+    Zip::ZipInputStream.open(epubfile) do |f|
+      while entry = f.get_next_entry
+        next if entry.directory?
+        next if entry.name[-1] == "/"
+        sep = "/"
+        if entry.name[0] == "/"
+          sep = ""
+        end
+        filepath = epubdir + sep + entry.name
+        dir = File.dirname(filepath)
+        FileUtils.mkdir_p(dir)
+        entry.extract(filepath)
+      end
+    end
+
+  end
+
 end
