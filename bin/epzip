@@ -19,12 +19,12 @@ end
 
 dir = ARGV.shift
 if !File.exists? dir
-  error "No such directory: #{dir}"
+  error_and_exit "No such directory: #{dir}"
 end
 
 file = ARGV.shift
 if file and File.exists? file
-  error "File already exists: #{file}"
+  error_and_exit "File already exists: #{file}"
 end
 
 Epzip.zip(dir, file)
