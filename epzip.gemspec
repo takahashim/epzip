@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Masayoshi Takahashi"]
-  s.date = %q{2010-10-03}
+  s.date = %q{2010-10-06}
   s.description = %q{epzip is EPUB packing tool. It's just only to do 'zip.'}
   s.email = %q{takahashimm@gmail.com}
   s.executables = ["epunzip", "epzip"]
