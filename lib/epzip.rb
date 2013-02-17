@@ -1,15 +1,8 @@
-require 'fileutils'
-require 'tmpdir'
+require 'rubygems'
+require 'zip/zip'
+
 class Epzip
   MIMETYPE_FILENAME = 'mimetype'
-
-  @@zip_cmd_path = 'zip'
-  @@unzip_cmd_path = 'unzip'
-  
-  def self.zip_cmd_path=(cmd); @@zip_cmd_path = cmd end
-  def self.zip_cmd_path;       @@zip_cmd_path end
-  def self.unzip_cmd_path=(cmd); @@unzip_cmd_path = cmd end
-  def self.unzip_cmd_path;       @@unzip_cmd_path end
   
   def self.zip(epubdir, epubfile = nil)
     if !File.exists? epubdir
@@ -17,21 +10,26 @@ class Epzip
     end
 
     epubfile ||= epubdir+".epub"
-    
-    Dir.mktmpdir do |tmpdir|
-      tmpfile = "#{tmpdir}/tmp.epub"
+
+    Zip::ZipOutputStream.open(epubfile) do |f|
+
+      f.put_next_entry(MIMETYPE_FILENAME, nil, nil, Zip::ZipEntry::STORED)
+      f << "application/epub+zip"
+      puts MIMETYPE_FILENAME
 
       Dir.chdir(epubdir) do
-        File.open(MIMETYPE_FILENAME, "w") do |f|
-          f.write("application/epub+zip")
+        Dir.glob("**/*") do |dir|
+          next if dir == MIMETYPE_FILENAME
+          next if !File.file? dir
+          puts dir
+          f.put_next_entry dir
+          f << File.read(dir)
         end
-        system("#{@@zip_cmd_path} -0X #{tmpfile} #{MIMETYPE_FILENAME}")
-        system("#{@@zip_cmd_path} -Xr9D #{tmpfile} * -x #{MIMETYPE_FILENAME}")
       end
-
-      FileUtils.cp(tmpfile, epubfile)
     end
+
     epubfile
+    
   end
 
   def self.unzip(epubfile, epubdir = nil)
@@ -41,7 +39,21 @@ class Epzip
       epubdir = Dir.pwd
     end
 
-    system("#{@@unzip_cmd_path} #{epubfile} -d #{epubdir}")
+    Zip::ZipInputStream.open(epubfile) do |f|
+      while entry = f.get_next_entry
+        next if entry.directory?
+        next if entry.name[-1] == "/"
+        sep = "/"
+        if entry.name[0] == "/"
+          sep = ""
+        end
+        filepath = epubdir + sep + entry.name
+        dir = File.dirname(filepath)
+        FileUtils.mkdir_p(dir)
+        entry.extract(filepath)
+      end
+    end
+
   end
 
 end
