@@ -1,59 +1,51 @@
-require 'rubygems'
-require 'zip/zip'
+require 'zip'
+require 'fileutils'
+require 'epzip/version'
 
 class Epzip
-  MIMETYPE_FILENAME = 'mimetype'
-  
+  MIMETYPE_FILENAME = 'mimetype'.freeze
+  MIMETYPE_CONTENT  = 'application/epub+zip'.freeze
+
   def self.zip(epubdir, epubfile = nil)
-    if !File.exists? epubdir
+    unless File.exist?(epubdir)
       raise ArgumentError, "No such directory -- #{epubdir}"
     end
 
-    epubfile ||= epubdir+".epub"
+    epubfile ||= epubdir + ".epub"
 
-    Zip::ZipOutputStream.open(epubfile) do |f|
-
-      f.put_next_entry(MIMETYPE_FILENAME, nil, nil, Zip::ZipEntry::STORED)
-      f << "application/epub+zip"
-      puts MIMETYPE_FILENAME
+    Zip::OutputStream.open(epubfile) do |zos|
+      # The mimetype entry must come first and be stored uncompressed.
+      zos.put_next_entry(MIMETYPE_FILENAME, nil, nil, Zip::Entry::STORED)
+      zos << MIMETYPE_CONTENT
 
       Dir.chdir(epubdir) do
-        Dir.glob("**/*") do |dir|
-          next if dir == MIMETYPE_FILENAME
-          next if !File.file? dir
-          puts dir
-          f.put_next_entry dir
-          f << File.read(dir)
+        Dir.glob("**/*") do |path|
+          next if path == MIMETYPE_FILENAME
+          next unless File.file?(path)
+
+          zos.put_next_entry(path)
+          zos << File.binread(path)
         end
       end
     end
 
     epubfile
-    
   end
 
   def self.unzip(epubfile, epubdir = nil)
-    if epubdir
-      FileUtils.mkdir_p(epubdir)
-    else
-      epubdir = Dir.pwd
-    end
+    epubdir ||= Dir.pwd
+    FileUtils.mkdir_p(epubdir)
 
-    Zip::ZipInputStream.open(epubfile) do |f|
-      while entry = f.get_next_entry
-        next if entry.directory?
-        next if entry.name[-1] == "/"
-        sep = "/"
-        if entry.name[0] == "/"
-          sep = ""
-        end
-        filepath = epubdir + sep + entry.name
-        dir = File.dirname(filepath)
-        FileUtils.mkdir_p(dir)
-        entry.extract(filepath)
+    Zip::File.open(epubfile) do |zip|
+      zip.each do |entry|
+        next if entry.name_is_directory?
+
+        filepath = File.join(epubdir, entry.name)
+        FileUtils.mkdir_p(File.dirname(filepath))
+        entry.extract(filepath) { true }
       end
     end
 
+    epubdir
   end
-
 end

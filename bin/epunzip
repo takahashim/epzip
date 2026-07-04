@@ -18,12 +18,12 @@ if !(ARGV.size == 1 or ARGV.size == 2)
 end
 
 file = ARGV.shift
-if !File.exists? file
+if !File.exist? file
   error_and_exit "No such file: #{file}"
 end
 
 dir = ARGV.shift
-if dir and File.exists? dir
+if dir and File.exist? dir
   error_and_exit "Directory already exists: #{dir}"
 end
 
