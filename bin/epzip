@@ -3,8 +3,8 @@
 require 'epzip'
 
 def error_and_exit(msg)
-  STDERR.puts msg
-  exit
+  warn msg
+  exit 1
 end
 
 def usage()
