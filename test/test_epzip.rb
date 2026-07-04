@@ -9,6 +9,22 @@ class TestEpzip < Test::Unit::TestCase
     end
   end
 
+  def test_unzip_rejects_path_traversal_entry
+    Dir.mktmpdir do |base|
+      # Craft an archive with an entry that escapes the target directory.
+      evil = File.join(base, "evil.zip")
+      Zip::File.open(evil, Zip::File::CREATE) do |zip|
+        zip.get_output_stream("../escaped.txt") { |os| os.write("pwned") }
+      end
+
+      dest = File.join(base, "out")
+      assert_raise ArgumentError do
+        Epzip.unzip(evil, dest)
+      end
+      assert !File.exist?(File.join(base, "escaped.txt")), "must not write outside dest"
+    end
+  end
+
   def test_zip_and_unzip_roundtrip
     Dir.mktmpdir do |base|
       src = File.join(base, "book")

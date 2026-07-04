@@ -36,11 +36,20 @@ class Epzip
     epubdir ||= Dir.pwd
     FileUtils.mkdir_p(epubdir)
 
+    root = File.expand_path(epubdir)
+
     Zip::File.open(epubfile) do |zip|
       zip.each do |entry|
         next if entry.name_is_directory?
 
-        filepath = File.join(epubdir, entry.name)
+        filepath = File.expand_path(File.join(epubdir, entry.name))
+        # Guard against Zip Slip: rubyzip skips its own name check when an
+        # explicit destination path is given, so reject entries that would
+        # escape the target directory.
+        unless filepath == root || filepath.start_with?(root + File::SEPARATOR)
+          raise ArgumentError, "Illegal entry name -- #{entry.name}"
+        end
+
         FileUtils.mkdir_p(File.dirname(filepath))
         entry.extract(filepath) { true }
       end
