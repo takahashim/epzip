@@ -36,7 +36,8 @@ class Epzip
       end
 
       @epubdir = epubdir
-      @epubfile = epubfile || epubdir + ".epub"
+      # "book/" must become "book.epub", not "book/.epub".
+      @epubfile = epubfile || epubdir.to_s.sub(%r{/+\z}, "") + ".epub"
     end
 
     def pack
@@ -63,6 +64,11 @@ class Epzip
     # Returns the files to pack, as paths relative to the source directory.
     def source_paths
       root = File.realpath(@epubdir)
+      # Only a root directory ends with a separator.
+      prefix = root.end_with?(File::SEPARATOR) ? root : root + File::SEPARATOR
+      # An EPUB left in the source directory by an earlier run is about to be
+      # replaced, so it cannot be packed into itself.
+      output = File.realpath(@epubfile) if File.exist?(@epubfile)
 
       Dir.glob("**/*", base: @epubdir).select do |path|
         next false if path == MIMETYPE_FILENAME
@@ -71,11 +77,12 @@ class Epzip
         # File.file? follows symbolic links, and so would reading the file.
         next false unless File.file?(file)
 
-        unless File.realpath(file).start_with?(root + File::SEPARATOR)
+        realpath = File.realpath(file)
+        unless realpath.start_with?(prefix)
           raise Error, "Symbolic link to outside of the source directory -- #{path}"
         end
 
-        true
+        realpath != output
       end
     end
 
@@ -101,15 +108,21 @@ class Epzip
       @epubfile = epubfile
       @epubdir = epubdir || Dir.pwd
       @root = File.expand_path(@epubdir)
+      # Only a root directory ends with a separator.
+      @prefix = @root.end_with?(File::SEPARATOR) ? @root : @root + File::SEPARATOR
       @overwrite = overwrite
     end
 
     def unpack
       Zip::File.open(@epubfile) do |zip|
+        check_root
         targets = zip.reject(&:name_is_directory?).map do |entry|
           [entry, target_path(entry)]
         end
+        check_conflicts(targets)
 
+        # Create the target only once the archive has been opened and checked,
+        # so that a rejected file does not leave an empty directory behind.
         FileUtils.mkdir_p(@root)
         targets.each do |entry, filepath|
           FileUtils.mkdir_p(File.dirname(filepath))
@@ -122,6 +135,15 @@ class Epzip
 
     private
 
+    # Raises Epzip::Error if the target directory cannot be created or used,
+    # because something else (or a dangling symbolic link) has its name.
+    def check_root
+      return if File.directory?(@root)
+      return unless File.exist?(@root) || File.symlink?(@root)
+
+      raise Error, "Not a directory -- #{@root}"
+    end
+
     # Returns the path +entry+ is to be extracted to, or raises Epzip::Error if
     # it must not be extracted.
     def target_path(entry)
@@ -129,7 +151,7 @@ class Epzip
       # Guard against Zip Slip: reject entries that would escape the target
       # directory instead of relying on rubyzip, which either skips its own
       # check (2.x, explicit destination path) or only warns (3.x).
-      unless filepath.start_with?(@root + File::SEPARATOR)
+      unless filepath.start_with?(@prefix)
         raise Error, "Illegal entry name -- #{entry.name}"
       end
 
@@ -140,15 +162,47 @@ class Epzip
         if File.symlink?(path)
           raise Error, "Symbolic link in the target directory -- #{path}"
         end
+        # A directory is needed here, and a file cannot be replaced by one.
+        if path != filepath && File.exist?(path) && !File.directory?(path)
+          raise Error, "Not a directory -- #{path}"
+        end
 
         path = File.dirname(path)
       end
 
-      if !@overwrite && File.exist?(filepath)
+      # A directory cannot be replaced by a file, even when overwriting.
+      if File.directory?(filepath)
+        raise Error, "Directory already exists -- #{filepath}"
+      elsif !@overwrite && File.exist?(filepath)
         raise Error, "File already exists -- #{filepath}"
       end
 
       filepath
+    end
+
+    # Raises Epzip::Error if the entries cannot all be extracted: two of them
+    # go to the same path, or one is a file where another needs a directory.
+    # Such an archive would otherwise fail halfway through the extraction.
+    def check_conflicts(targets)
+      entries = {}
+      targets.each do |entry, filepath|
+        if entries.key?(filepath)
+          raise Error, "Duplicate entry -- #{entry.name}"
+        end
+
+        entries[filepath] = entry
+      end
+
+      targets.each do |_entry, filepath|
+        dir = File.dirname(filepath)
+        until dir == @root
+          if entries.key?(dir)
+            raise Error, "Entry is both a file and a directory -- #{entries[dir].name}"
+          end
+
+          dir = File.dirname(dir)
+        end
+      end
     end
 
     # The block tells rubyzip whether it may replace an existing file.

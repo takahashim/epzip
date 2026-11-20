@@ -36,6 +36,28 @@ class TestEpzip < Test::Unit::TestCase
     end
   end
 
+  def test_zip_ignores_trailing_slash_for_default_filename
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+
+      assert_equal src + ".epub", Epzip.zip(src + "/")
+      assert_equal %w[META-INF OEBPS], Dir.children(src).sort
+    end
+  end
+
+  # The EPUB of an earlier run is in the source directory.
+  def test_zip_does_not_pack_output_into_itself
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+      epub = File.join(src, "out.epub")
+
+      2.times { Epzip.zip(src, epub) }
+
+      names = Zip::File.open(epub) { |zip| zip.entries.map(&:name) }
+      assert_equal %w[mimetype META-INF/container.xml OEBPS/content.opf], names
+    end
+  end
+
   def test_zip_rejects_symlink_to_outside_of_source_dir
     Dir.mktmpdir do |base|
       src = make_book(base)
@@ -202,6 +224,86 @@ class TestEpzip < Test::Unit::TestCase
         Epzip.unzip(evil, dest)
       end
       assert !File.exist?(dest), "must not extract the entries before the rejected one"
+    end
+  end
+
+  # "a" cannot be both a file and the directory of "a/b".
+  def test_unzip_extracts_nothing_when_entries_conflict
+    [%w[first.txt a a/b], %w[first.txt a/b a], %w[first.txt a.txt ./a.txt]].each do |names|
+      Dir.mktmpdir do |base|
+        evil = File.join(base, "evil.zip")
+        Zip::OutputStream.open(evil) do |zos|
+          names.each do |name|
+            zos.put_next_entry(name)
+            zos << "data"
+          end
+        end
+
+        dest = File.join(base, "out")
+        assert_raise Epzip::Error, names.inspect do
+          Epzip.unzip(evil, dest, overwrite: true)
+        end
+        assert !File.exist?(dest), "must not extract anything of #{names.inspect}"
+      end
+    end
+  end
+
+  # "OEBPS" in the target directory is a file, but has to be a directory.
+  def test_unzip_rejects_file_in_place_of_dir_in_target
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      FileUtils.mkdir_p(dest)
+      File.write(File.join(dest, "OEBPS"), "keep me")
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest, overwrite: true)
+      end
+      assert_equal "Not a directory -- #{File.join(dest, 'OEBPS')}", error.message
+      assert_equal %w[OEBPS], Dir.children(dest), "must not extract the other entries"
+      assert_equal "keep me", File.read(File.join(dest, "OEBPS"))
+    end
+  end
+
+  # "mimetype" in the target directory is a directory, but has to be a file.
+  def test_unzip_rejects_dir_in_place_of_file_in_target
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      FileUtils.mkdir_p(File.join(dest, "mimetype"))
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest, overwrite: true)
+      end
+      assert_equal "Directory already exists -- #{File.join(dest, 'mimetype')}", error.message
+      assert_equal %w[mimetype], Dir.children(dest), "must not extract the other entries"
+    end
+  end
+
+  def test_unzip_rejects_file_as_target_dir
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      File.write(dest, "keep me")
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest)
+      end
+      assert_equal "Not a directory -- #{dest}", error.message
+      assert_equal "keep me", File.read(dest)
+    end
+  end
+
+  def test_unzip_rejects_dangling_symlink_as_target_dir
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      symlink(File.join(base, "nowhere"), dest)
+
+      assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest)
+      end
+      assert !File.exist?(File.join(base, "nowhere"))
     end
   end
 

@@ -16,8 +16,14 @@
   rejected archive leaves nothing behind.
 - `Epzip.zip` and `epzip` refuse a symbolic link to a file outside the source
   directory. Links to files inside it are still followed.
+- `Epzip.unzip` and `epunzip` also reject, before extracting, an archive whose
+  entries conflict with each other (a name used as both a file and a
+  directory) or with a file or directory that already exists in the target.
 - `Epzip.zip` no longer changes the current directory of the process, and
   raises `ArgumentError` when the source is not a directory.
+- `Epzip.zip` and `epzip` name the default output `book.epub` for the source
+  `book/` (it was `book/.epub`), and do not pack an output file left in the
+  source directory by an earlier run into itself.
 - Print an error message instead of a backtrace when the command-line tools
   hit an invalid archive.
 - Do not leave an empty target directory behind when the archive cannot be
