@@ -1,13 +1,83 @@
 # frozen_string_literal: true
 
 require 'helper'
-require 'tmpdir'
-require 'fileutils'
 
 class TestEpzip < Test::Unit::TestCase
+  include EpzipTestHelper
+
   def test_zip_should_use_existed_dir
     assert_raise ArgumentError do
       Epzip.zip("unknown_dir")
+    end
+  end
+
+  def test_zip_uses_dir_name_with_epub_extension_by_default
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+
+      assert_equal src + ".epub", Epzip.zip(src)
+      assert File.file?(src + ".epub")
+    end
+  end
+
+  # A real EPUB resource directory has its own mimetype file. It must not be
+  # added a second time, and its content must not replace the canonical one.
+  def test_zip_does_not_duplicate_mimetype_in_source_dir
+    Dir.mktmpdir do |base|
+      src = make_book(base, mimetype: "application/epub+zip\n")
+
+      epub = Epzip.zip(src, File.join(base, "out.epub"))
+
+      Zip::File.open(epub) do |zip|
+        names = zip.entries.map(&:name)
+        assert_equal Epzip::MIMETYPE_FILENAME, names.first
+        assert_equal 1, names.count(Epzip::MIMETYPE_FILENAME)
+        assert_equal %w[META-INF/container.xml OEBPS/content.opf mimetype], names.sort
+        assert_equal Epzip::MIMETYPE_CONTENT, zip.entries.first.get_input_stream.read
+      end
+    end
+  end
+
+  def test_unzip_extracts_into_current_directory_by_default
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+
+      dest = File.join(base, "cwd")
+      FileUtils.mkdir_p(dest)
+      Dir.chdir(dest) do
+        assert_equal Dir.pwd, Epzip.unzip(epub)
+      end
+
+      assert_equal Epzip::MIMETYPE_CONTENT, File.read(File.join(dest, "mimetype"))
+      assert File.file?(File.join(dest, "OEBPS", "content.opf"))
+    end
+  end
+
+  def test_unzip_does_not_create_target_dir_for_broken_archive
+    Dir.mktmpdir do |base|
+      broken = File.join(base, "broken.epub")
+      File.write(broken, "this is not a zip file\n")
+
+      dest = File.join(base, "out")
+      assert_raise Zip::Error do
+        Epzip.unzip(broken, dest)
+      end
+      assert !File.exist?(dest), "must not leave an empty target directory"
+    end
+  end
+
+  # The target is "out"; "out-evil" shares that prefix but is outside of it.
+  def test_unzip_rejects_entry_in_sibling_dir_with_same_prefix
+    Dir.mktmpdir do |base|
+      evil = File.join(base, "evil.zip")
+      Zip::File.open(evil, create: true) do |zip|
+        zip.get_output_stream("../out-evil/escaped.txt") { |os| os.write("pwned") }
+      end
+
+      assert_raise Epzip::Error do
+        Epzip.unzip(evil, File.join(base, "out"))
+      end
+      assert !File.exist?(File.join(base, "out-evil")), "must not write outside dest"
     end
   end
 

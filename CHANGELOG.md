@@ -10,6 +10,8 @@
   would extract outside the target directory.
 - Print an error message instead of a backtrace when the command-line tools
   hit an invalid archive.
+- Do not leave an empty target directory behind when the archive cannot be
+  opened.
 - Move the executables from `bin/` to `exe/`, and stop shipping tests and CI
   settings in the gem.
 - Convert README to Markdown.

@@ -38,11 +38,13 @@ class Epzip
 
   def self.unzip(epubfile, epubdir = nil)
     epubdir ||= Dir.pwd
-    FileUtils.mkdir_p(epubdir)
-
     root = File.expand_path(epubdir)
 
     Zip::File.open(epubfile) do |zip|
+      # Create the target only once the archive has been opened, so that an
+      # unreadable file does not leave an empty directory behind.
+      FileUtils.mkdir_p(root)
+
       zip.each do |entry|
         next if entry.name_is_directory?
 
