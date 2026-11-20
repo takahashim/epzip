@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'epzip'
+
+def error_and_exit(msg)
+  warn msg
+  exit 1
+end
+
+def usage
+  error_and_exit "usage: epunzip <filename> [targetdir]"
+end
+
+usage unless ARGV.size == 1 || ARGV.size == 2
+
+file = ARGV.shift
+unless File.exist?(file)
+  error_and_exit "No such file: #{file}"
+end
+
+dir = ARGV.shift
+if dir && File.exist?(dir)
+  error_and_exit "Directory already exists: #{dir}"
+end
+
+begin
+  Epzip.unzip(file, dir)
+rescue Epzip::Error, Zip::Error => e
+  error_and_exit e.message
+end
