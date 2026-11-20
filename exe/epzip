@@ -15,7 +15,7 @@ end
 usage unless ARGV.size == 1 || ARGV.size == 2
 
 dir = ARGV.shift
-unless File.exist?(dir)
+unless File.directory?(dir)
   error_and_exit "No such directory: #{dir}"
 end
 
