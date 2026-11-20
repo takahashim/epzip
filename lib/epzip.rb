@@ -30,6 +30,9 @@ class Epzip
   end
 
   class Packer # :nodoc:
+    # File::ALT_SEPARATOR is the backslash on Windows, and nil elsewhere.
+    TRAILING_SEPARATORS = /[#{Regexp.escape([File::SEPARATOR, File::ALT_SEPARATOR].join)}]+\z/
+
     def initialize(epubdir, epubfile)
       unless File.directory?(epubdir)
         raise ArgumentError, "No such directory -- #{epubdir}"
@@ -37,7 +40,7 @@ class Epzip
 
       @epubdir = epubdir
       # "book/" must become "book.epub", not "book/.epub".
-      @epubfile = epubfile || epubdir.to_s.sub(%r{/+\z}, "") + ".epub"
+      @epubfile = epubfile || epubdir.to_s.sub(TRAILING_SEPARATORS, "") + ".epub"
     end
 
     def pack
@@ -116,9 +119,10 @@ class Epzip
     def unpack
       Zip::File.open(@epubfile) do |zip|
         check_root
-        targets = zip.reject(&:name_is_directory?).map do |entry|
-          [entry, target_path(entry)]
-        end
+        # A directory entry usually ends with a separator, but may also be
+        # marked as a directory by its attributes alone.
+        files = zip.reject { |entry| entry.name_is_directory? || entry.directory? }
+        targets = files.map { |entry| [entry, target_path(entry)] }
         check_conflicts(targets)
 
         # Create the target only once the archive has been opened and checked,
@@ -136,18 +140,33 @@ class Epzip
     private
 
     # Raises Epzip::Error if the target directory cannot be created or used,
-    # because something else (or a dangling symbolic link) has its name.
+    # because something else (or a dangling symbolic link) has its name or
+    # the name of one of the directories leading to it.
     def check_root
-      return if File.directory?(@root)
-      return unless File.exist?(@root) || File.symlink?(@root)
+      # The target directory itself, or the closest thing that exists above it.
+      path = @root
+      until File.exist?(path) || File.symlink?(path)
+        parent = File.dirname(path)
+        break if parent == path
 
-      raise Error, "Not a directory -- #{@root}"
+        path = parent
+      end
+      return if File.directory?(path)
+
+      raise Error, "Not a directory -- #{path}"
     end
 
     # Returns the path +entry+ is to be extracted to, or raises Epzip::Error if
     # it must not be extracted.
     def target_path(entry)
-      filepath = File.expand_path(File.join(@root, entry.name))
+      # rubyzip returns the name as a binary string, which cannot be joined to
+      # a target directory with non-ASCII characters in its path.
+      name = entry.name.dup.force_encoding(@root.encoding)
+      filepath = begin
+        File.expand_path(File.join(@root, name))
+      rescue ArgumentError # a null byte in the name
+        raise Error, "Illegal entry name -- #{entry.name.inspect}"
+      end
       # Guard against Zip Slip: reject entries that would escape the target
       # directory instead of relying on rubyzip, which either skips its own
       # check (2.x, explicit destination path) or only warns (3.x).
@@ -173,8 +192,10 @@ class Epzip
       # A directory cannot be replaced by a file, even when overwriting.
       if File.directory?(filepath)
         raise Error, "Directory already exists -- #{filepath}"
-      elsif !@overwrite && File.exist?(filepath)
-        raise Error, "File already exists -- #{filepath}"
+      elsif File.exist?(filepath)
+        raise Error, "File already exists -- #{filepath}" unless @overwrite
+        # Writing to a named pipe or a device would not replace it.
+        raise Error, "Not a regular file -- #{filepath}" unless File.file?(filepath)
       end
 
       filepath
@@ -208,7 +229,10 @@ class Epzip
     # The block tells rubyzip whether it may replace an existing file.
     def extract(entry, filepath)
       if RUBYZIP_V3_EXTRACT
-        entry.extract(entry.name, destination_directory: @root) { @overwrite }
+        # The checked path, relative to the target directory, and not the
+        # binary entry name: rubyzip joins it to the directory again.
+        relative = filepath.delete_prefix(@prefix)
+        entry.extract(relative, destination_directory: @root) { @overwrite }
       else
         entry.extract(filepath) { @overwrite }
       end

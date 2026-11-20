@@ -307,6 +307,95 @@ class TestEpzip < Test::Unit::TestCase
     end
   end
 
+  # "plain" is a file, so the target directory cannot be created below it.
+  def test_unzip_rejects_target_dir_below_a_file
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      plain = File.join(base, "plain")
+      File.write(plain, "keep me")
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, File.join(plain, "out"))
+      end
+      assert_equal "Not a directory -- #{plain}", error.message
+      assert_equal "keep me", File.read(plain)
+    end
+  end
+
+  # "mimetype" in the target directory is a named pipe; writing to it would
+  # block instead of replacing it.
+  def test_unzip_rejects_special_file_in_target_when_overwriting
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      FileUtils.mkdir_p(dest)
+      fifo = File.join(dest, "mimetype")
+      begin
+        File.mkfifo(fifo)
+      rescue NotImplementedError
+        omit "named pipes are not available"
+      end
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest, overwrite: true)
+      end
+      assert_equal "Not a regular file -- #{fifo}", error.message
+      assert_equal %w[mimetype], Dir.children(dest), "must not extract the other entries"
+    end
+  end
+
+  # rubyzip returns entry names as binary strings.
+  def test_unzip_extracts_non_ascii_names_into_non_ascii_target_dir
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+      File.write(File.join(src, "OEBPS", "第1章.xhtml"), "<html/>\n")
+      epub = Epzip.zip(src, File.join(base, "out.epub"))
+
+      dest = File.join(base, "本")
+      Epzip.unzip(epub, dest)
+
+      assert_equal "<html/>\n", File.read(File.join(dest, "OEBPS", "第1章.xhtml"))
+    end
+  end
+
+  def test_unzip_rejects_entry_name_with_null_byte
+    Dir.mktmpdir do |base|
+      evil = File.join(base, "evil.zip")
+      Zip::OutputStream.open(evil) do |zos|
+        ["first.txt", "a\0b.txt"].each do |name|
+          zos.put_next_entry(name)
+          zos << "data"
+        end
+      end
+
+      dest = File.join(base, "out")
+      assert_raise Epzip::Error do
+        Epzip.unzip(evil, dest)
+      end
+      assert !File.exist?(dest), "must not extract the entries before the rejected one"
+    end
+  end
+
+  # "OEBPS" is marked as a directory by its attributes, not by a trailing "/".
+  def test_unzip_skips_directory_entry_without_trailing_slash
+    Dir.mktmpdir do |base|
+      archive = File.join(base, "dir.zip")
+      Zip::OutputStream.open(archive) do |zos|
+        dir = Zip::Entry.new(archive, "OEBPS")
+        dir.instance_variable_set(:@ftype, :directory)
+        dir.unix_perms = 0o755
+        zos.put_next_entry(dir, nil, nil, Zip::Entry::STORED)
+        zos.put_next_entry("OEBPS/content.opf")
+        zos << "<package/>\n"
+      end
+
+      dest = File.join(base, "out")
+      Epzip.unzip(archive, dest)
+
+      assert_equal "<package/>\n", File.read(File.join(dest, "OEBPS", "content.opf"))
+    end
+  end
+
   # The target is "out"; "out-evil" shares that prefix but is outside of it.
   def test_unzip_rejects_entry_in_sibling_dir_with_same_prefix
     Dir.mktmpdir do |base|

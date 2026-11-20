@@ -19,6 +19,11 @@
 - `Epzip.unzip` and `epunzip` also reject, before extracting, an archive whose
   entries conflict with each other (a name used as both a file and a
   directory) or with a file or directory that already exists in the target.
+- `Epzip.unzip` and `epunzip` extract entries with non-ASCII names into a
+  target directory with non-ASCII characters in its path (it raised
+  `Encoding::CompatibilityError`), and raise `Epzip::Error` for an entry name
+  with a null byte, for a target directory below a file, and, with
+  `overwrite: true`, for a named pipe or a device in place of a file.
 - `Epzip.zip` no longer changes the current directory of the process, and
   raises `ArgumentError` when the source is not a directory.
 - `Epzip.zip` and `epzip` name the default output `book.epub` for the source
