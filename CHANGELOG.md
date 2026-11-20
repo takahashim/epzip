@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0 - Unreleased
+## 0.10.0 - 2026-11-20
 
 - Support rubyzip 3.x in addition to 2.x (rubyzip 2.3 or later is now required).
 - Never write an extra field on the `mimetype` entry. With rubyzip 3.x a Zip64
