@@ -17,4 +17,11 @@ module EpzipTestHelper
     File.write(File.join(src, "mimetype"), mimetype) if mimetype
     src
   end
+
+  # Creates a symbolic link, or omits the test where they are not available.
+  def symlink(target, link)
+    File.symlink(target, link)
+  rescue NotImplementedError, Errno::EACCES
+    omit "symbolic links are not available"
+  end
 end

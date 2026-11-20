@@ -38,7 +38,20 @@ require 'epzip'
 
 Epzip.zip("book", "book.epub")
 Epzip.unzip("book.epub", "book")
+Epzip.unzip("book.epub", "book", overwrite: true) # replace existing files
 ```
+
+## Handling files from someone else
+
+epzip and epunzip stop with an error, without writing anything, when:
+
+* `srcdir` contains a symbolic link to a file outside of it (epzip).
+* an entry would be extracted outside of `targetdir`, through a symbolic link
+  that already exists in it, or over an existing file (epunzip).
+
+epunzip does not limit the size or the number of the extracted files. If you
+extract EPUB files that you cannot trust, check them first; for example, sum
+up `Zip::Entry#size` of the entries with rubyzip.
 
 ## Development
 

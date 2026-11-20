@@ -11,6 +11,60 @@ class TestEpzip < Test::Unit::TestCase
     end
   end
 
+  def test_zip_rejects_file_as_source_dir
+    Dir.mktmpdir do |base|
+      file = File.join(base, "book")
+      File.write(file, "not a directory")
+
+      assert_raise ArgumentError do
+        Epzip.zip(file)
+      end
+      assert !File.exist?(file + ".epub")
+    end
+  end
+
+  def test_zip_accepts_relative_source_dir
+    Dir.mktmpdir do |base|
+      make_book(base)
+
+      Dir.chdir(base) do
+        assert_equal "book.epub", Epzip.zip("book")
+      end
+
+      names = Zip::File.open(File.join(base, "book.epub")) { |zip| zip.entries.map(&:name) }
+      assert_equal %w[mimetype META-INF/container.xml OEBPS/content.opf], names
+    end
+  end
+
+  def test_zip_rejects_symlink_to_outside_of_source_dir
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+      File.write(File.join(base, "secret.txt"), "secret")
+      symlink(File.join(base, "secret.txt"), File.join(src, "OEBPS", "notes.txt"))
+
+      epub = File.join(base, "out.epub")
+      error = assert_raise Epzip::Error do
+        Epzip.zip(src, epub)
+      end
+      assert_equal "Symbolic link to outside of the source directory -- OEBPS/notes.txt",
+                   error.message
+      assert !File.exist?(epub), "must not leave a partial EPUB"
+    end
+  end
+
+  def test_zip_follows_symlink_inside_source_dir
+    Dir.mktmpdir do |base|
+      src = make_book(base)
+      symlink("content.opf", File.join(src, "OEBPS", "alias.opf"))
+
+      epub = Epzip.zip(src, File.join(base, "out.epub"))
+
+      Zip::File.open(epub) do |zip|
+        assert_equal "<package/>\n", zip.find_entry("OEBPS/alias.opf").get_input_stream.read
+      end
+    end
+  end
+
   def test_zip_uses_dir_name_with_epub_extension_by_default
     Dir.mktmpdir do |base|
       src = make_book(base)
@@ -63,6 +117,91 @@ class TestEpzip < Test::Unit::TestCase
         Epzip.unzip(broken, dest)
       end
       assert !File.exist?(dest), "must not leave an empty target directory"
+    end
+  end
+
+  def test_unzip_does_not_overwrite_existing_file_by_default
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      existing = File.join(dest, "OEBPS", "content.opf")
+      FileUtils.mkdir_p(File.dirname(existing))
+      File.write(existing, "keep me")
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest)
+      end
+      assert_equal "File already exists -- #{existing}", error.message
+      assert_equal "keep me", File.read(existing)
+      assert_equal %w[OEBPS], Dir.children(dest), "must not extract the other entries"
+    end
+  end
+
+  def test_unzip_overwrites_existing_file_when_asked
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      dest = File.join(base, "out")
+      existing = File.join(dest, "OEBPS", "content.opf")
+      FileUtils.mkdir_p(File.dirname(existing))
+      File.write(existing, "replace me")
+
+      Epzip.unzip(epub, dest, overwrite: true)
+
+      assert_equal "<package/>\n", File.read(existing)
+      assert_equal Epzip::MIMETYPE_CONTENT, File.read(File.join(dest, "mimetype"))
+    end
+  end
+
+  # "OEBPS" in the target directory is a link to somewhere else.
+  def test_unzip_rejects_symlinked_dir_in_target
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      outside = File.join(base, "outside")
+      dest = File.join(base, "out")
+      FileUtils.mkdir_p([outside, dest])
+      symlink(outside, File.join(dest, "OEBPS"))
+
+      error = assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest, overwrite: true)
+      end
+      assert_equal "Symbolic link in the target directory -- #{File.join(dest, 'OEBPS')}",
+                   error.message
+      assert_equal [], Dir.children(outside), "must not write through the link"
+      assert_equal %w[OEBPS], Dir.children(dest), "must not extract the other entries"
+    end
+  end
+
+  # "mimetype" in the target directory is a link to a file somewhere else.
+  def test_unzip_rejects_symlinked_file_in_target
+    Dir.mktmpdir do |base|
+      epub = Epzip.zip(make_book(base), File.join(base, "out.epub"))
+      victim = File.join(base, "victim.txt")
+      File.write(victim, "keep me")
+      dest = File.join(base, "out")
+      FileUtils.mkdir_p(dest)
+      symlink(victim, File.join(dest, "mimetype"))
+
+      assert_raise Epzip::Error do
+        Epzip.unzip(epub, dest, overwrite: true)
+      end
+      assert_equal "keep me", File.read(victim)
+    end
+  end
+
+  def test_unzip_extracts_nothing_when_an_entry_is_rejected
+    Dir.mktmpdir do |base|
+      evil = File.join(base, "evil.zip")
+      Zip::File.open(evil, create: true) do |zip|
+        zip.get_output_stream("first.txt") { |os| os.write("harmless") }
+        zip.get_output_stream("../escaped.txt") { |os| os.write("pwned") }
+        zip.get_output_stream("last.txt") { |os| os.write("harmless") }
+      end
+
+      dest = File.join(base, "out")
+      assert_raise Epzip::Error do
+        Epzip.unzip(evil, dest)
+      end
+      assert !File.exist?(dest), "must not extract the entries before the rejected one"
     end
   end
 

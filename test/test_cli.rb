@@ -61,6 +61,48 @@ class TestCli < Test::Unit::TestCase
     assert_equal "keep me", File.read(epub)
   end
 
+  def test_epzip_fails_for_file_as_source_dir
+    file = File.join(@base, "file")
+    File.write(file, "not a directory")
+
+    assert_failure "No such directory: #{file}", run_command("epzip", file)
+  end
+
+  def test_epzip_reports_symlink_to_outside_of_source_dir
+    src = make_book(@base)
+    File.write(File.join(@base, "secret.txt"), "secret")
+    symlink(File.join(@base, "secret.txt"), File.join(src, "notes.txt"))
+
+    assert_failure "Symbolic link to outside of the source directory -- notes.txt",
+                   run_command("epzip", src)
+    assert !File.exist?(src + ".epub")
+  end
+
+  def test_epunzip_extracts_into_current_directory_by_default
+    epub = Epzip.zip(make_book(@base), File.join(@base, "out.epub"))
+    cwd = File.join(@base, "cwd")
+    FileUtils.mkdir_p(cwd)
+
+    _out, err, status = run_command("epunzip", epub, chdir: cwd)
+
+    assert status.success?, err
+    assert_equal %w[META-INF OEBPS mimetype], Dir.children(cwd).sort
+  end
+
+  def test_epunzip_does_not_overwrite_file_in_current_directory
+    epub = Epzip.zip(make_book(@base), File.join(@base, "out.epub"))
+    cwd = File.join(@base, "cwd")
+    FileUtils.mkdir_p(cwd)
+    File.write(File.join(cwd, "mimetype"), "keep me")
+
+    _out, err, status = run_command("epunzip", epub, chdir: cwd)
+
+    assert_equal 1, status.exitstatus
+    assert_match(/\AFile already exists -- .*mimetype\n\z/, err)
+    assert_equal %w[mimetype], Dir.children(cwd)
+    assert_equal "keep me", File.read(File.join(cwd, "mimetype"))
+  end
+
   def test_epunzip_extracts_epub
     epub = Epzip.zip(make_book(@base), File.join(@base, "out.epub"))
     dest = File.join(@base, "unpacked")
@@ -117,9 +159,9 @@ class TestCli < Test::Unit::TestCase
 
   private
 
-  def run_command(name, *args)
+  def run_command(name, *args, chdir: Dir.pwd)
     Open3.capture3(RbConfig.ruby, "-I", File.join(ROOT, "lib"),
-                   File.join(ROOT, "exe", name), *args)
+                   File.join(ROOT, "exe", name), *args, chdir: chdir)
   end
 
   def assert_failure(message, result)

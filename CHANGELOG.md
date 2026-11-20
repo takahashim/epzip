@@ -8,6 +8,16 @@
 - Require Ruby 3.0 or later.
 - Raise `Epzip::Error` instead of `ArgumentError` for archive entries that
   would extract outside the target directory.
+- `Epzip.unzip` and `epunzip` no longer overwrite existing files. Pass
+  `overwrite: true` to `Epzip.unzip` to replace them.
+- `Epzip.unzip` and `epunzip` refuse to extract through a symbolic link that
+  already exists in the target directory.
+- `Epzip.unzip` and `epunzip` check every entry before extracting, so a
+  rejected archive leaves nothing behind.
+- `Epzip.zip` and `epzip` refuse a symbolic link to a file outside the source
+  directory. Links to files inside it are still followed.
+- `Epzip.zip` no longer changes the current directory of the process, and
+  raises `ArgumentError` when the source is not a directory.
 - Print an error message instead of a backtrace when the command-line tools
   hit an invalid archive.
 - Do not leave an empty target directory behind when the archive cannot be
